@@ -1,0 +1,266 @@
+{
+  "name": "Crypto Morning Brief",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "07b0dbd8-5d1d-4f35-9cc6-a25ec45c4a32",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://api.coingecko.com/api/v3/coins/markets",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "vs_currency",
+              "value": "usd"
+            },
+            {
+              "name": "order",
+              "value": "market_cap_desc"
+            },
+            {
+              "name": "per_page",
+              "value": "10"
+            },
+            {
+              "name": "page",
+              "value": "1"
+            },
+            {
+              "name": "sparkline",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        208,
+        0
+      ],
+      "id": "74192932-7659-4ac4-8fcb-914470e68c93",
+      "name": "Get Crypto Data",
+      "retryOnFail": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const coins = items.map(item => item.json);\n\ncoins.sort((a, b) => b.market_cap - a.market_cap);\n\nconst top5 = coins.slice(0, 5);\n\nreturn top5.map(coin => {\n  return {\n    json: {\n      name: coin.name,\n      symbol: coin.symbol,\n      price: coin.current_price,\n      market_cap: coin.market_cap,\n      change: coin.price_change_percentage_24h,\n      id: coin.id\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        -96
+      ],
+      "id": "c214cf1d-b996-4bf4-9a66-929c117f19c4",
+      "name": "Top 5 Coins"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        624,
+        -96
+      ],
+      "id": "8e6f8252-fe14-4117-90fe-5c4b4fda1e08",
+      "name": "Keep 1 Coin"
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://api.coingecko.com/api/v3/coins/' + $json.id }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        832,
+        -96
+      ],
+      "id": "009729bc-07de-4c8a-958c-53f7a31d9470",
+      "name": "Get Coin Details",
+      "retryOnFail": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "8d447065-ff34-49b0-9364-94ccef90d784",
+              "leftValue": "={{$json[\"market_data\"][\"price_change_percentage_24h\"]}}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1040,
+        -176
+      ],
+      "id": "51d81df8-354e-430f-8a59-84ce81919ace",
+      "name": "High Growth Check"
+    },
+    {
+      "parameters": {
+        "jsCode": "let message = \"🚀 Crypto Market Digest\\n\\n\";\n\nfor (const item of items) {\n\n  const coin = item.json;\n\n  message += `💰 ${coin.name}\\n`;\n  message += `📈 Change: ${coin.market_data.price_change_percentage_24h}%\\n`;\n  message += `💵 Price: $${coin.market_data.current_price.usd}\\n\\n`;\n}\n\nreturn [\n  {\n    json: {\n      content: message\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        -176
+      ],
+      "id": "6d7cae4b-6d8e-4bf0-a9c2-95d6a788e4f9",
+      "name": "Create Discord Message"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://discord.com/api/webhooks/1506832140623679538/vYXE0Q4nbh7sVxm2K9MkxnJAy47B87j7-GCP85XBBMtcJQ55AVpFkeSJ-KlFabhPuYG2",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "content",
+              "value": "={{$json[\"content\"]}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1456,
+        -176
+      ],
+      "id": "7c5a8a15-2ecb-4caa-8bd2-70933d0a03fa",
+      "name": "Send To Discord"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Crypto Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Crypto Data": {
+      "main": [
+        [
+          {
+            "node": "Top 5 Coins",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Top 5 Coins": {
+      "main": [
+        [
+          {
+            "node": "Keep 1 Coin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Keep 1 Coin": {
+      "main": [
+        [
+          {
+            "node": "Get Coin Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Coin Details": {
+      "main": [
+        [
+          {
+            "node": "High Growth Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "High Growth Check": {
+      "main": [
+        [
+          {
+            "node": "Create Discord Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Discord Message": {
+      "main": [
+        [
+          {
+            "node": "Send To Discord",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "a07626cc-2476-41ca-be34-580809b32415",
+  "meta": {
+    "instanceId": "e450b8742e843a0b1db58633c017adca26a10a332b9b46a34161b7199268c916"
+  },
+  "id": "Rvj7lsZ3muAKdoI2",
+  "tags": []
+}
